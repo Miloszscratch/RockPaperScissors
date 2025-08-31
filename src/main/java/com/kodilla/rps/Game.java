@@ -30,29 +30,28 @@ public class Game {
 
     public Outcome runMatch() {
         printIntro();
-        boolean end = false;
 
-        while (!end) {
+        while (true) {
             printScore();
 
             Move p1 = readHumanMove(cfg.player1Name);
             if (p1 == null) {
                 if (lastCommand == 'x' && confirm("Really exit match? (y/n): ")) return Outcome.ABORTED;
-                if (lastCommand == 'n' && confirm("Really restart match? (y/n): ")) { reset(); continue; }
-                else continue;
+                if (lastCommand == 'n' && confirm("Really restart match? (y/n): ")) { reset(); printIntro(); continue; }
+                continue;
             }
 
             Move p2;
             if (cfg.mode == GameMode.PVP) {
                 p2 = readHumanMove(cfg.player2Name);
-                if (p2 == null) { // handle commands from P2 as well
+                if (p2 == null) {
                     if (lastCommand == 'x' && confirm("Really exit match? (y/n): ")) return Outcome.ABORTED;
-                    if (lastCommand == 'n' && confirm("Really restart match? (y/n): ")) { reset(); continue; }
-                    else continue;
+                    if (lastCommand == 'n' && confirm("Really restart match? (y/n): ")) { reset(); printIntro(); continue; }
+                    continue;
                 }
             } else {
                 p2 = cfg.cheatMode ? pickBiasedAgainst(p1) : pickRandom();
-                System.out.printf("Computer chooses: %s%n", p2.label());
+                System.out.println("Computer chooses: " + p2.label());
             }
 
             System.out.printf("Round: %s -> %s   |   %s -> %s%n",
@@ -60,43 +59,47 @@ public class Game {
 
             Result r = Result.of(p1, p2);
             switch (r) {
-                case WIN  -> { p1Wins++; System.out.println("Round result: " + cfg.player1Name + " wins the round!"); }
-                case LOSE -> { p2Wins++; System.out.println("Round result: " + cfg.displayP2Name() + " wins the round!"); }
-                case DRAW -> System.out.println("Round result: DRAW.");
+                case WIN  -> { p1Wins++; System.out.println("Round result: " + cfg.player1Name + " wins the round."); }
+                case LOSE -> { p2Wins++; System.out.println("Round result: " + cfg.displayP2Name() + " wins the round."); }
+                case DRAW -> System.out.println("Round result: draw.");
             }
 
             if (p1Wins >= cfg.roundsToWin || p2Wins >= cfg.roundsToWin) {
-                System.out.println("------------------------------------");
+                System.out.println("--------------------------------------------------------------");
                 System.out.println(summary());
-                System.out.println("------------------------------------");
+                System.out.println("--------------------------------------------------------------");
                 while (true) {
-                    System.out.print("Press 'n' to start a NEW match, 'm' for MAIN MENU, or 'x' to EXIT app: ");
-                    String s = scanner.nextLine().trim().toLowerCase();
+                    System.out.print("Press 'n' for NEW match, 'm' for MAIN MENU, or 'x' to EXIT app: ");
+                    String s = readLineSafe();
+                    if (s == null) return Outcome.ABORTED;
+                    s = s.trim().toLowerCase();
                     if (s.equals("n")) { reset(); printIntro(); break; }
                     if (s.equals("m")) { return p1Wins > p2Wins ? Outcome.PLAYER1_WIN : Outcome.PLAYER2_OR_CPU_WIN; }
-                    if (s.equals("x")) { System.exit(0); }
+                    if (s.equals("x")) { return Outcome.ABORTED; }
+                    System.out.println("Invalid option.");
                 }
             }
         }
-        return Outcome.ABORTED;
     }
 
     private void reset() { p1Wins = 0; p2Wins = 0; }
 
     private void printIntro() {
-        System.out.println("\n--- Match ---");
+        System.out.println();
+        System.out.println("--- Match ------------------------------------------------------");
         System.out.printf("Mode: %s | Play to %d wins%n", cfg.mode, cfg.roundsToWin);
         System.out.printf("Players: %s vs %s%n", cfg.player1Name, cfg.displayP2Name());
         System.out.println("Controls:");
-        System.out.println("  1 – rock");
-        System.out.println("  2 – paper");
-        System.out.println("  3 – scissors");
+        System.out.println("  1 - rock");
+        System.out.println("  2 - paper");
+        System.out.println("  3 - scissors");
         if (cfg.extended) {
-            System.out.println("  4 – lizard");
-            System.out.println("  5 – Spock");
+            System.out.println("  4 - lizard");
+            System.out.println("  5 - Spock");
         }
-        System.out.println("  x – exit match (with confirmation)");
-        System.out.println("  n – restart match (with confirmation)\n");
+        System.out.println("  x - exit match (with confirmation)");
+        System.out.println("  n - restart match (with confirmation)");
+        System.out.println();
     }
 
     private void printScore() {
@@ -106,9 +109,11 @@ public class Game {
 
     private Move readHumanMove(String who) {
         while (true) {
-            System.out.printf("%s, make your move (1/2/3%s, x – exit, n – new): ",
+            System.out.printf("%s, make your move (1/2/3%s, x=exit, n=new): ",
                     who, cfg.extended ? "/4/5" : "");
-            String s = scanner.nextLine().trim().toLowerCase();
+            String s = readLineSafe();
+            if (s == null) { lastCommand = 0; return null; }
+            s = s.trim().toLowerCase();
             switch (s) {
                 case "1": return Move.ROCK;
                 case "2": return Move.PAPER;
@@ -117,18 +122,29 @@ public class Game {
                 case "5": if (cfg.extended) return Move.SPOCK;  break;
                 case "x": lastCommand = 'x'; return null;
                 case "n": lastCommand = 'n'; return null;
+                default: System.out.println("Invalid choice. Try again.");
             }
-            System.out.println("Invalid choice. Try again.");
+        }
+    }
+
+    private String readLineSafe() {
+        try {
+            if (!scanner.hasNextLine()) return null;
+            return scanner.nextLine();
+        } catch (Exception e) {
+            return null;
         }
     }
 
     private boolean confirm(String q) {
         while (true) {
             System.out.print(q);
-            String s = scanner.nextLine().trim().toLowerCase();
+            String s = readLineSafe();
+            if (s == null) return false;
+            s = s.trim().toLowerCase();
             if (s.equals("y")) return true;
             if (s.equals("n")) return false;
-            System.out.println("Answer 'y' or 'n'.");
+            System.out.println("Please answer with 'y' or 'n'.");
         }
     }
 
@@ -154,6 +170,7 @@ public class Game {
 
     private String summary() {
         String winner = (p1Wins > p2Wins) ? cfg.player1Name : cfg.displayP2Name();
-        return String.format("Match finished: %s WINS (%d : %d).", winner, Math.max(p1Wins, p2Wins), Math.min(p1Wins, p2Wins));
+        return String.format("Match finished: %s wins (%d : %d).", winner,
+                Math.max(p1Wins, p2Wins), Math.min(p1Wins, p2Wins));
     }
 }
